@@ -281,7 +281,7 @@ function render(){
 
   el.innerHTML=rows.map(p=>{
     const s=st(p.id),k=kind(p.access);
-    const map='https://map.naver.com/p/search/'+encodeURIComponent(p.addr);
+    const mapId=p.id;
     const d=p.dist===null?'도로 이격 미확인':p.dist===0?'도로에 접함':`도로에서 ${p.dist}m`;
     return `<div class="card ${k} ${s.done?'done':''}">
       <div class="body">
@@ -299,7 +299,7 @@ function render(){
       <div class="memo"><button data-memo="${p.id}" class="${s.memo?'':'none'}">${
         s.memo?`<b>현장 메모</b>${s.memo.replace(/</g,'&lt;')}`:'현장 메모 남기기'}</button></div>
       <div class="acts">
-        <a class="a-map" href="${map}" target="_blank" rel="noopener">${IC.map}지도</a>
+        <button class="a-map" data-map="${mapId}">${IC.map}지도</button>
         <button class="a-cam" data-cam="${p.id}">${IC.cam}사진 촬영</button>
         ${s.done?`<button class="a-undo" data-undo="${p.id}">${IC.undo}되돌리기</button>`
                 :`<button class="a-ok" data-ok="${p.id}">${IC.ok}확인</button>`}
@@ -310,9 +310,33 @@ function render(){
   el.querySelectorAll('[data-cam]').forEach(b=>{const id=b.dataset.cam;
     b.onclick=()=>document.getElementById('f-'+id).click();
     document.getElementById('f-'+id).onchange=e=>shoot(id,e.target);});
+  el.querySelectorAll('[data-map]').forEach(b=>b.onclick=()=>{
+    const pp=PARCELS.find(x=>x.id===b.dataset.map); if(pp) openNaverMap(pp.addr);
+  });
   el.querySelectorAll('[data-memo]').forEach(b=>b.onclick=()=>editMemo(b.dataset.memo));
   el.querySelectorAll('[data-ok]').forEach(b=>b.onclick=()=>mark(b.dataset.ok,true));
   el.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>mark(b.dataset.undo,false));
+}
+
+/* ── 네이버지도 앱 우선 실행 ── */
+function openNaverMap(addr){
+  const q=encodeURIComponent(addr);
+  const appUrl=`nmap://search?query=${q}&appname=gaeryeong.field.survey`;
+  const webUrl=`https://map.naver.com/p/search/${q}`;
+  const isAndroid=/android/i.test(navigator.userAgent);
+
+  if(isAndroid){
+    location.href=`intent://search?query=${q}&appname=gaeryeong.field.survey#Intent;scheme=nmap;package=com.nhn.android.nmap;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
+    return;
+  }
+  let left=false;
+  const mark=()=>{left=true;};
+  document.addEventListener('visibilitychange',mark,{once:true});
+  location.href=appUrl;
+  setTimeout(()=>{
+    document.removeEventListener('visibilitychange',mark);
+    if(!left) window.open(webUrl,'_blank');
+  },900);
 }
 
 /* ── 촬영 ── */
