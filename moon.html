@@ -316,14 +316,39 @@ function render(){
 }
 
 /* ── 촬영 ── */
+async function saveOrShowPhoto(file,name){
+  let named=file;
+  try{ named=new File([file],name,{type:file.type||'image/jpeg'}); }catch(e){}
+
+  if(navigator.canShare && navigator.canShare({files:[named]})){
+    try{
+      await navigator.share({files:[named],title:name});
+      toast(`${name} 저장됨`);
+      return true;
+    }catch(e){
+      if(e && e.name==='AbortError'){ toast('저장을 취소했습니다'); return false; }
+      /* 공유 실패 시 아래 대체 방법으로 진행 */
+    }
+  }
+
+  const url=URL.createObjectURL(named);
+  openSheet(`<h2>사진 저장</h2><p class="sub">${name}</p>
+    <img src="${url}" style="width:100%;border-radius:12px;margin-bottom:12px;display:block" alt="촬영된 사진">
+    <p class="sub" style="margin-bottom:16px">사진을 <b>길게 눌러</b> '사진에 추가'를 선택하면 저장됩니다.</p>
+    <div class="mbtn"><button id="photoClose" class="pri">확인</button></div>`);
+  const btn=document.getElementById('photoClose');
+  if(btn) btn.onclick=()=>{ closeSheet(); setTimeout(()=>URL.revokeObjectURL(url),1000); };
+  return true;
+}
+
 async function shoot(id,input){
   const f=input.files&&input.files[0]; if(!f)return;
   const p=PARCELS.find(x=>x.id===id),s=st(id),n=s.shots+1;
   const ext=(f.type.split('/')[1]||'jpg').replace('jpeg','jpg');
   const name=`${p.fname} (${n}).${ext}`;
-  dl(f,name);
+  await saveOrShowPhoto(f,name);
   state[id]={...s,shots:n}; await store.set(state); input.value='';
-  render(); toast(`${name} 저장`);
+  render();
 }
 async function mark(id,done){
   const s=st(id);
