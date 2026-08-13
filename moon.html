@@ -166,6 +166,7 @@ a.opt{text-decoration:none;color:inherit}
 .mbtn{display:flex;gap:9px;margin-top:13px}
 .mbtn button{flex:1;min-height:46px;border-radius:12px;background:var(--bg);font-size:14px;font-weight:650}
 .mbtn button.pri{flex:2;background:var(--brand);color:#fff}
+.mbtn button.dgr{color:#B3261E}
 
 #toast{position:fixed;left:50%;bottom:86px;transform:translate(-50%,16px);z-index:100;
   background:var(--ink);color:#fff;padding:12px 18px;border-radius:13px;font-size:13px;font-weight:600;
@@ -605,23 +606,37 @@ async function photosOf(id){
 /* 카드의 '사진 N장' 을 누르면 열리는 목록 */
 async function showPhotos(id){
   const p=PARCELS.find(x=>x.id===id), s=st(id), rows=await photosOf(id);
-  const head=`<h2>촬영한 사진</h2><p class="sub">${p.day}일차 ${String(p.seq).padStart(2,'0')} · ${p.label} · 기록 ${s.shots}장</p>`;
+  /* 기록 매수와 앱 보관 장수가 어긋나 있으면 감추지 않고 둘 다 보여준다 */
+  const head=`<h2>촬영한 사진</h2><p class="sub">${p.day}일차 ${String(p.seq).padStart(2,'0')} · ${p.label}
+    · 기록 ${s.shots}장${rows.length!==s.shots?` · 앱 보관 ${rows.length}장`:''}</p>`;
+  let mid;
   if(!rows.length){
-    openSheet(head+`<p class="pnote">이 필지의 사진은 앱에 보관되어 있지 않습니다.
-      보관 기능이 생기기 전에 촬영했거나, 저장 공간이 부족했을 수 있습니다.
-      사진 앱이나 드라이브에 저장해 두신 것은 그대로 남아 있습니다.</p>`);
-    return;
-  }
-  const body=rows.map(r=>{
-    const u=URL.createObjectURL(r.thumb||r.full); _purls.push(u);
-    return `<figure><img src="${u}" alt="${r.name}"><figcaption>${r.name}</figcaption>
-      <div class="pact">${r.full?`<button data-resave="${r.key}">사진첩에 저장</button>`:''}
-      <button class="pdel" data-pdel="${r.key}">삭제</button></div></figure>`;
-  }).join('');
-  const kept=rows.filter(r=>r.full).length;
-  openSheet(head+`<div class="pgrid">${body}</div>
+    mid=`<p class="pnote">이 필지의 사진은 앱에 보관되어 있지 않습니다.
+      보관 기능이 생기기 전에 촬영했거나, 사진을 지웠거나, 저장 공간이 부족했을 수 있습니다.
+      사진첩에 저장해 두신 것은 그대로 남아 있습니다.</p>`;
+  }else{
+    const body=rows.map(r=>{
+      const u=URL.createObjectURL(r.thumb||r.full); _purls.push(u);
+      return `<figure><img src="${u}" alt="${r.name}"><figcaption>${r.name}</figcaption>
+        <div class="pact">${r.full?`<button data-resave="${r.key}">사진첩에 저장</button>`:''}
+        <button class="pdel" data-pdel="${r.key}">삭제</button></div></figure>`;
+    }).join('');
+    const kept=rows.filter(r=>r.full).length;
+    mid=`<div class="pgrid">${body}</div>
     <p class="pnote">원본이 남아 있는 ${kept}장만 사진첩에 다시 저장할 수 있습니다.
-    나머지는 확인용 축소본입니다. 앱 보관본은 백업이 아니니 최종 사진은 사진 앱이나 드라이브에 저장해 주세요.</p>`);
+    나머지는 확인용 축소본입니다. 앱 보관본은 백업이 아니니 최종 사진은 사진첩에 저장해 주세요.</p>`;
+  }
+  openSheet(head+mid+(s.shots||rows.length
+    ? `<div class="mbtn"><button id="pzero" class="dgr">사진 기록 초기화</button></div>` : ''));
+
+  const z=document.getElementById('pzero');
+  if(z) z.onclick=async()=>{
+    if(!confirm('이 필지의 사진 매수를 0장으로 되돌리고 앱에 보관된 사진도 지웁니다.\n사진첩에 저장한 파일은 그대로 남습니다.\n\n초기화할까요?')) return;
+    try{ const rs=await photosOf(id); await preq('readwrite',os=>{rs.forEach(r=>os.delete(r.key))}); }catch(e){}
+    const cur=st(id);
+    state[id]={...cur,shots:0,pn:0};
+    await store.set(state); closeSheet(); render(); toast('사진 기록을 초기화했습니다');
+  };
 
   document.querySelectorAll('[data-resave]').forEach(b=>b.onclick=async()=>{
     const r=await preq('readonly',os=>os.get(b.dataset.resave));
