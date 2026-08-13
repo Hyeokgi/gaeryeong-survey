@@ -705,8 +705,8 @@ async function importXlsx(file){
 
 /* ══════════ 시트 구성 ══════════ */
 const HEAD=[['방문','순번'],['지번','지목'],['면적(㎡)','소유자'],['접근성','도로이격'],['인접 도로','지도'],['사진','확인'],['확인시각','현장 메모']].flat();
-const COLS=['방문일','순번','지번','지목','면적(㎡)','소유자','접근성','도로이격','인접 도로','지도','사진','확인','확인시각','현장 메모'];
-const WID =[8,7,13,6,11,14,11,11,13,11,8,8,18,38];
+const COLS=['방문일','순번','마을','지번','지목','면적(㎡)','소유자','접근성','도로이격','인접 도로','지도','사진','확인','확인시각','현장 메모'];
+const WID =[8,7,10,13,6,11,14,11,11,13,11,8,8,18,38];
 const ACCS={'차량진입':14,'도보접근':15,'확인필요':16};
 
 function dataRow(p,tint){
@@ -717,6 +717,7 @@ function dataRow(p,tint){
   return [
     {v:p.day+'일차',s:C},
     {v:String(p.seq).padStart(2,'0'),s:C},
+    {v:p.village,s:C},
     {v:p.jibun,s:C},
     {v:p.jimok,s:C},
     {v:area,t:'n',s:N},
@@ -735,13 +736,13 @@ function pad(row,n){while(row.length<n)row.push(null);return row}
 
 function tableSheet(name,list,tint,subtitle){
   const rows=[
-    pad([{v:`${WHO} 조사원 농지전수조사 현장기록`,s:1}],14),
-    pad([{v:subtitle,s:22}],14),
+    pad([{v:`${WHO} 조사원 농지전수조사 현장기록`,s:1}],15),
+    pad([{v:subtitle,s:22}],15),
     COLS.map(c=>({v:c,s:3})),
     ...list.map(p=>dataRow(p,tint))
   ];
   return {name,cols:WID,rows,heights:{0:34,1:22,2:30},
-    merges:['A1:N1','A2:N2'],freeze:3,filter:`A3:N${rows.length}`};
+    merges:['A1:O1','A2:O2'],freeze:3,filter:`A3:O${rows.length}`};
 }
 
 function summarySheet(){
@@ -845,8 +846,8 @@ function makeReport(){
 }
 
 function makeCsv(){
-  const head=['방문일','순번','지번','지목','면적','소유자','접근성','도로이격(m)','사진매수','확인','확인시각','현장메모'];
-  const rows=rowsData().map(({p,s})=>[p.day,String(p.seq).padStart(2,'0'),p.jibun,p.jimok,
+  const head=['방문일','순번','마을','지번','지목','면적','소유자','접근성','도로이격(m)','사진매수','확인','확인시각','현장메모'];
+  const rows=rowsData().map(({p,s})=>[p.day,String(p.seq).padStart(2,'0'),p.village,p.jibun,p.jimok,
     `"${p.area}"`,p.owner,kindTxt(p.access),p.dist===null?'':p.dist,s.shots||0,
     s.done?'확인':'',s.at?new Date(s.at).toLocaleString('ko-KR'):'',`"${(s.memo||'').replace(/"/g,'""')}"`]);
   dl(new Blob(['\ufeff'+[head,...rows].map(r=>r.join(',')).join('\n')],{type:'text/csv'}),
