@@ -782,9 +782,9 @@ function makeReport(){
   const body=VILLAGES.map(v=>{
     const rs=rowsData().filter(r=>r.p.village===v);
     return `<h3>${v} <small>${rs.filter(r=>r.s.done).length}/${rs.length} 확인</small></h3>
-    <table><thead><tr><th>순번</th><th>지번</th><th>지목</th><th>면적(㎡)</th><th>소유자</th>
+    <table><thead><tr><th>방문</th><th>순번</th><th>지번</th><th>지목</th><th>면적(㎡)</th><th>소유자</th>
     <th>접근성</th><th>도로이격</th><th>사진</th><th>확인</th><th>현장 메모</th></tr></thead><tbody>
-    ${rs.map(({p,s})=>`<tr class="${s.done?'y':''}"><td>${String(p.seq).padStart(2,'0')}</td>
+    ${rs.map(({p,s})=>`<tr class="${s.done?'y':''}"><td>${p.day}일차</td><td>${String(p.seq).padStart(2,'0')}</td>
       <td class="l">${p.jibun}</td><td>${p.jimok}</td><td class="r">${p.area}</td><td class="l">${p.owner}</td>
       <td>${kindTxt(p.access)}</td><td class="r">${p.dist===null?'-':p.dist+'m'}</td>
       <td>${s.shots?s.shots+'장':'-'}</td><td>${s.done?'✓':''}</td>
