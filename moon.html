@@ -82,7 +82,8 @@ main{max-width:620px;margin:0 auto;padding:14px}
 .pill.walk{background:#E7EFF9;color:var(--walk)}
 .pill.need{background:#FBF0DC;color:var(--need)}
 .shot{font-size:11.5px;font-weight:700;color:var(--car);background:var(--mint);
-  padding:4px 10px;border-radius:99px}
+  padding:4px 10px;border-radius:99px;min-height:30px;display:inline-flex;align-items:center}
+.shot:active{background:#D6E9E1}
 .vbadge{display:inline-block;font-size:10px;font-weight:700;color:var(--brand2);background:var(--mint);
   padding:1px 7px;border-radius:99px;margin-right:4px;vertical-align:middle}
 .memo{display:flex;gap:8px;align-items:flex-start;padding:0 16px 13px 18px;margin-top:-4px}
@@ -95,6 +96,15 @@ main{max-width:620px;margin:0 auto;padding:14px}
 .memo button.has b{color:#8A5A00}
 .memo b{display:block;font-size:10.5px;font-weight:700;color:var(--brand2);margin-bottom:2px;letter-spacing:.02em}
 .memo b::before{content:'✎ ';font-weight:400}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.pgrid figure{margin:0;background:var(--bg);border-radius:12px;overflow:hidden}
+.pgrid img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#DCE4E1}
+.pgrid figcaption{font-size:10.5px;color:var(--ink2);padding:7px 9px 0;line-height:1.4;word-break:break-all}
+.pgrid .pact{display:flex;gap:1px;margin-top:7px;background:var(--line)}
+.pgrid .pact button{flex:1;min-height:44px;background:var(--surface);padding:9px 4px;font-size:11.5px;font-weight:650}
+.pgrid .pact button:active{background:#EFF4F2}
+.pgrid .pact .pdel{color:#B3261E}
+.pnote{font-size:12px;color:var(--ink3);line-height:1.6;margin:0 0 4px}
 .acts{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:1px;background:var(--line)}
 .acts>*{background:var(--surface);min-height:50px;display:flex;align-items:center;justify-content:center;
   gap:6px;font-size:13.5px;font-weight:650;text-decoration:none;color:var(--ink);transition:.14s}
@@ -313,7 +323,7 @@ function render(){
         <div class="rt">
           <span class="ord tnum">${vill==='done'?p.day+'일차 ':''}${String(p.seq).padStart(2,'0')}</span>
           <span class="pill ${k}">${kindTxt(p.access)}</span>
-          ${s.shots?`<span class="shot tnum">사진 ${s.shots}장</span>`:''}
+          ${s.shots?`<button class="shot tnum" data-photos="${p.id}">사진 ${s.shots}장 ›</button>`:''}
         </div>
       </div>
       <div class="memo"><button data-memo="${p.id}" class="${s.memo?'has':'none'}">${
@@ -333,6 +343,7 @@ function render(){
   el.querySelectorAll('[data-map]').forEach(b=>b.onclick=()=>{
     const pp=PARCELS.find(x=>x.id===b.dataset.map); if(pp) openNaverMap(pp.addr);
   });
+  el.querySelectorAll('[data-photos]').forEach(b=>b.onclick=()=>showPhotos(b.dataset.photos));
   el.querySelectorAll('[data-memo]').forEach(b=>b.onclick=()=>editMemo(b.dataset.memo));
   el.querySelectorAll('[data-ok]').forEach(b=>b.onclick=()=>mark(b.dataset.ok,true));
   el.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>mark(b.dataset.undo,false));
@@ -387,13 +398,14 @@ async function saveOrShowPhoto(file,name){
 
 async function shoot(id,input){
   const f=input.files&&input.files[0]; if(!f)return;
-  const p=PARCELS.find(x=>x.id===id),s=st(id),n=s.shots+1;
+  const p=PARCELS.find(x=>x.id===id),s=st(id),n=(s.pn||s.shots||0)+1;
   const ext=(f.type.split('/')[1]||'jpg').replace('jpeg','jpg');
   const name=`${p.fname} (${n}).${ext}`;
   const saved=await saveOrShowPhoto(f,name);
   input.value='';
   if(!saved){ render(); return; }   /* 저장을 취소하면 매수도 파일명 번호도 소모하지 않는다 */
-  state[id]={...s,shots:n}; await store.set(state);
+  await keepPhoto(id,n,name,f);
+  state[id]={...s,shots:s.shots+1,pn:n}; await store.set(state);
   render();
 }
 async function mark(id,done){
@@ -426,12 +438,14 @@ function editMemo(id){
 const mask=document.getElementById('mask'),sheet=document.getElementById('sheet');
 function openSheet(h){document.getElementById('sheetBody').innerHTML=h;
   mask.classList.add('on');sheet.classList.add('on');bindSheet();}
-function closeSheet(){mask.classList.remove('on');sheet.classList.remove('on');}
+let _purls=[];
+function closeSheet(){mask.classList.remove('on');sheet.classList.remove('on');
+  if(_purls.length){const u=_purls;_purls=[];setTimeout(()=>u.forEach(x=>URL.revokeObjectURL(x)),400);}}
 mask.onclick=closeSheet;
 
 function bindSheet(){
   const b=document.getElementById('sheetBody');
-  const m={rep:makeReport,xls:makeXlsx,csv:makeCsv,back:backup,
+  const m={rep:makeReport,xls:makeXlsx,csv:makeCsv,back:backup,pbox:showPhotoBox,
     rest:()=>document.getElementById('restoreFile').click(),
     impx:()=>document.getElementById('xlsxFile').click(),reset:doReset};
   b.querySelectorAll('[data-act]').forEach(x=>x.onclick=()=>{closeSheet();setTimeout(m[x.dataset.act],240)});
@@ -453,10 +467,153 @@ document.getElementById('btnMore').onclick=()=>openSheet(`
     <span>내보낸 엑셀을 PC에서 고친 뒤 다시 올리면 확인·사진·메모가 앱에 반영됩니다.</span></span></button>
   <button class="opt" data-act="rest"><span class="oic">${IC.load}</span><span><b>백업 불러오기</b>
     <span>내려받아 둔 백업 파일에서 진행 상황을 되살립니다.</span></span></button>
+  <button class="opt" data-act="pbox"><span class="oic">${IC.cam}</span><span><b>보관된 사진</b>
+    <span>앱에 보관 중인 사진의 개수와 용량을 확인하고 비웁니다.</span></span></button>
   <button class="opt danger" data-act="reset"><span class="oic">${IC.trash}</span><span><b>진행상황 초기화</b>
     <span>확인 표시와 사진 매수를 모두 지웁니다. 찍은 사진 파일은 남습니다.</span></span></button>`);
 
 
+
+/* ══════════ 사진 보관함 (IndexedDB · 축소본은 계속, 원본은 최근 것만) ══════════ */
+const PDB='gaeryeong-photos', PSTORE='photos';
+const THUMB_EDGE=900, THUMB_Q=.7, FULL_KEEP=100;
+let _pdb=null;
+function pdb(){
+  if(_pdb) return _pdb;
+  _pdb=new Promise((res,rej)=>{
+    if(!window.indexedDB){ rej(new Error('NO_IDB')); return; }
+    const r=indexedDB.open(PDB,1);
+    r.onupgradeneeded=()=>{
+      const d=r.result;
+      if(!d.objectStoreNames.contains(PSTORE)){
+        const os=d.createObjectStore(PSTORE,{keyPath:'key'});
+        os.createIndex('parcel','parcel'); os.createIndex('at','at');
+      }
+    };
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+  });
+  return _pdb;
+}
+/* 트랜잭션 하나를 열어 fn 이 만든 요청의 결과를 돌려준다 */
+const preq=(mode,fn)=>pdb().then(d=>new Promise((res,rej)=>{
+  const t=d.transaction(PSTORE,mode), r=fn(t.objectStore(PSTORE));
+  t.oncomplete=()=>res(r?r.result:undefined);
+  t.onerror=()=>rej(t.error); t.onabort=()=>rej(t.error);
+}));
+
+/* 확인용 축소본 · 장변 900px 로 줄인다 */
+async function shrink(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((res,rej)=>{
+      const i=new Image(); i.onload=()=>res(i); i.onerror=()=>rej(new Error('IMG')); i.src=url;
+    });
+    const k=Math.min(1,THUMB_EDGE/Math.max(img.naturalWidth,img.naturalHeight));
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(img.naturalWidth*k));
+    c.height=Math.max(1,Math.round(img.naturalHeight*k));
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    return await new Promise(res=>c.toBlob(res,'image/jpeg',THUMB_Q));
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/* 원본은 최근 FULL_KEEP 장만 남기고 오래된 것부터 비운다 (축소본은 그대로 둔다) */
+async function pruneFulls(){
+  const d=await pdb();
+  await new Promise((res,rej)=>{
+    const t=d.transaction(PSTORE,'readwrite');
+    const cur=t.objectStore(PSTORE).index('at').openCursor(null,'prev');
+    let kept=0;
+    cur.onsuccess=e=>{
+      const c=e.target.result; if(!c) return;
+      const v=c.value;
+      if(v.full){ kept++; if(kept>FULL_KEEP) c.update({...v,full:null}); }
+      c.continue();
+    };
+    t.oncomplete=()=>res(); t.onerror=()=>rej(t.error);
+  });
+}
+
+async function keepPhoto(id,n,name,file){
+  try{
+    const thumb=await shrink(file).catch(()=>null);
+    await preq('readwrite',os=>os.put({key:id+':'+n,parcel:id,n,name,at:Date.now(),thumb,full:file}));
+    await pruneFulls();
+  }catch(e){
+    toast('사진을 앱에 보관하지 못했습니다');   /* 보관 실패해도 촬영 기록 자체는 남긴다 */
+  }
+}
+
+async function photosOf(id){
+  try{
+    const rows=await preq('readonly',os=>os.index('parcel').getAll(id));
+    return (rows||[]).sort((a,b)=>a.n-b.n);
+  }catch(e){ return []; }
+}
+
+/* 카드의 '사진 N장' 을 누르면 열리는 목록 */
+async function showPhotos(id){
+  const p=PARCELS.find(x=>x.id===id), s=st(id), rows=await photosOf(id);
+  const head=`<h2>촬영한 사진</h2><p class="sub">${p.day}일차 ${String(p.seq).padStart(2,'0')} · ${p.label} · 기록 ${s.shots}장</p>`;
+  if(!rows.length){
+    openSheet(head+`<p class="pnote">이 필지의 사진은 앱에 보관되어 있지 않습니다.
+      보관 기능이 생기기 전에 촬영했거나, 저장 공간이 부족했을 수 있습니다.
+      사진 앱이나 드라이브에 저장해 두신 것은 그대로 남아 있습니다.</p>`);
+    return;
+  }
+  const body=rows.map(r=>{
+    const u=URL.createObjectURL(r.thumb||r.full); _purls.push(u);
+    return `<figure><img src="${u}" alt="${r.name}"><figcaption>${r.name}</figcaption>
+      <div class="pact">${r.full?`<button data-resave="${r.key}">다시 저장</button>`:''}
+      <button class="pdel" data-pdel="${r.key}">삭제</button></div></figure>`;
+  }).join('');
+  const kept=rows.filter(r=>r.full).length;
+  openSheet(head+`<div class="pgrid">${body}</div>
+    <p class="pnote">원본이 남아 있는 ${kept}장만 다시 저장할 수 있습니다.
+    나머지는 확인용 축소본입니다. 앱 보관본은 백업이 아니니 최종 사진은 사진 앱이나 드라이브에 저장해 주세요.</p>`);
+
+  document.querySelectorAll('[data-resave]').forEach(b=>b.onclick=async()=>{
+    const r=await preq('readonly',os=>os.get(b.dataset.resave));
+    if(r&&r.full) await saveOrShowPhoto(r.full,r.name); else toast('원본이 남아 있지 않습니다');
+  });
+  document.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=async()=>{
+    if(!confirm('이 사진을 앱 보관함에서 지웁니다.\n사진 앱에 저장해 둔 것은 그대로 남습니다.\n\n지울까요?')) return;
+    try{ await preq('readwrite',os=>os.delete(b.dataset.pdel)); }catch(e){}
+    const cur=st(id);
+    state[id]={...cur,shots:Math.max(0,cur.shots-1)};
+    await store.set(state); render(); toast('사진을 지웠습니다');
+    showPhotos(id);
+  });
+}
+
+/* 설정 · 보관 현황과 비우기 */
+async function showPhotoBox(){
+  let n=0,full=0,used=null;
+  try{
+    const d=await pdb();
+    await new Promise((res,rej)=>{
+      const t=d.transaction(PSTORE,'readonly');
+      const cur=t.objectStore(PSTORE).openCursor();
+      cur.onsuccess=e=>{const c=e.target.result; if(!c) return; n++; if(c.value.full) full++; c.continue();};
+      t.oncomplete=()=>res(); t.onerror=()=>rej(t.error);
+    });
+  }catch(e){}
+  try{ if(navigator.storage&&navigator.storage.estimate) used=(await navigator.storage.estimate()).usage; }catch(e){}
+  const mb=used==null?null:Math.round(used/1048576);
+  openSheet(`<h2>보관된 사진</h2>
+    <p class="sub">앱 안에 보관 중인 사진입니다. 확인용이며 백업이 아닙니다.</p>
+    <p class="pnote">전체 ${n}장 · 원본이 남은 것 ${full}장${mb==null?'':` · 사용 중인 저장 공간 약 ${mb}MB`}<br>
+    원본은 최근 ${FULL_KEEP}장만 유지되고 오래된 것부터 자동으로 비워집니다. 축소본은 계속 남습니다.</p>
+    <button class="opt danger" id="pclr"><span class="oic">${IC.trash}</span><span><b>보관된 사진 전부 비우기</b>
+      <span>앱 안의 사진만 지웁니다. 확인 표시·메모·사진 매수 기록과 사진 앱에 저장한 파일은 그대로입니다.</span></span></button>`);
+  const b=document.getElementById('pclr');
+  if(b) b.onclick=async()=>{
+    if(!confirm('앱에 보관된 사진을 모두 지웁니다.\n사진 앱에 저장해 둔 파일은 그대로 남습니다.\n\n비울까요?')) return;
+    try{ await preq('readwrite',os=>os.clear()); toast('보관된 사진을 비웠습니다'); }
+    catch(e){ toast('비우지 못했습니다'); }
+    closeSheet();
+  };
+}
 
 /* ══════════ XLSX 생성기 (라이브러리 없음 · 오프라인) ══════════ */
 const CRCT=(()=>{const t=new Uint32Array(256);
