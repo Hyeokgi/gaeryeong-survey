@@ -410,6 +410,17 @@ function openNaverMap(addr){
   },900);
 }
 
+/* ── 사진 내보내기 ──
+   안드로이드·PC 는 곧바로 내려받으면 파일명 그대로 갤러리(다운로드 폴더)에 들어간다.
+   아이폰은 이 방식이 사진첩이 아니라 파일 앱으로 가버려서 공유창을 거쳐야 한다. */
+const IS_IOS=/iP(hone|od|ad)/.test(navigator.userAgent)||
+  (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+async function exportPhoto(file,name){
+  if(IS_IOS) return await saveOrShowPhoto(file,name);
+  try{ dl(file,name); toast(`${name} 저장됨`); return true; }
+  catch(e){ toast('사진첩 저장에 실패했습니다'); return false; }
+}
+
 /* ── 촬영 ── */
 async function saveOrShowPhoto(file,name){
   let named=file;
@@ -441,9 +452,9 @@ async function shoot(id,input){
   const p=PARCELS.find(x=>x.id===id),s=st(id),n=(s.pn||s.shots||0)+1;
   const ext=(f.type.split('/')[1]||'jpg').replace('jpeg','jpg');
   const name=`${p.fname} (${n}).${ext}`;
-  const saved=await saveOrShowPhoto(f,name);
   input.value='';
-  if(!saved){ render(); return; }   /* 저장을 취소하면 매수도 파일명 번호도 소모하지 않는다 */
+  if(IS_IOS) toast('사진을 보관했습니다 · 사진첩 저장은 사진 목록에서');
+  else await exportPhoto(f,name);          /* 안드로이드는 묻지 않고 곧바로 갤러리로 */
   await keepPhoto(id,n,name,f);
   state[id]={...s,shots:s.shots+1,pn:n}; await store.set(state);
   render();
@@ -604,17 +615,17 @@ async function showPhotos(id){
   const body=rows.map(r=>{
     const u=URL.createObjectURL(r.thumb||r.full); _purls.push(u);
     return `<figure><img src="${u}" alt="${r.name}"><figcaption>${r.name}</figcaption>
-      <div class="pact">${r.full?`<button data-resave="${r.key}">다시 저장</button>`:''}
+      <div class="pact">${r.full?`<button data-resave="${r.key}">사진첩에 저장</button>`:''}
       <button class="pdel" data-pdel="${r.key}">삭제</button></div></figure>`;
   }).join('');
   const kept=rows.filter(r=>r.full).length;
   openSheet(head+`<div class="pgrid">${body}</div>
-    <p class="pnote">원본이 남아 있는 ${kept}장만 다시 저장할 수 있습니다.
+    <p class="pnote">원본이 남아 있는 ${kept}장만 사진첩에 다시 저장할 수 있습니다.
     나머지는 확인용 축소본입니다. 앱 보관본은 백업이 아니니 최종 사진은 사진 앱이나 드라이브에 저장해 주세요.</p>`);
 
   document.querySelectorAll('[data-resave]').forEach(b=>b.onclick=async()=>{
     const r=await preq('readonly',os=>os.get(b.dataset.resave));
-    if(r&&r.full) await saveOrShowPhoto(r.full,r.name); else toast('원본이 남아 있지 않습니다');
+    if(r&&r.full) await exportPhoto(r.full,r.name); else toast('원본이 남아 있지 않습니다');
   });
   document.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=async()=>{
     if(!confirm('이 사진을 앱 보관함에서 지웁니다.\n사진 앱에 저장해 둔 것은 그대로 남습니다.\n\n지울까요?')) return;
