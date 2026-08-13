@@ -136,6 +136,7 @@ footer button.pri{background:var(--brand);color:#fff}
 .opt{display:flex;gap:13px;align-items:flex-start;width:100%;text-align:left;padding:14px;
   border-radius:13px;background:var(--bg);margin-bottom:9px;transition:.14s}
 .opt:active{background:#E4EAE8}
+a.opt{text-decoration:none;color:inherit}
 .opt .oic{flex:0 0 38px;height:38px;border-radius:10px;background:var(--mint);color:var(--brand2);
   display:grid;place-items:center}
 .opt .oic svg{width:19px;height:19px}
@@ -790,9 +791,7 @@ function makeReport(){
       <td>${s.shots?s.shots+'장':'-'}</td><td>${s.done?'✓':''}</td>
       <td class="l memo">${(s.memo||'').replace(/</g,'&lt;')}</td></tr>`).join('')}
     </tbody></table>`}).join('');
-  const w=window.open('','_blank');
-  if(!w){toast('팝업이 차단되었습니다. 허용 후 다시 시도하세요');return;}
-  w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
+  const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1"><title>${WHO} 조사원 농지전수조사 결과</title><style>
   body{font-family:-apple-system,'Malgun Gothic','Noto Sans KR',sans-serif;margin:0;padding:26px 20px;
     background:#F2F5F4;color:#0E1614;font-size:13px}
@@ -822,8 +821,14 @@ function makeReport(){
   <div><b>${done}</b><span>확인 완료</span></div>
   <div><b>${PARCELS.length-done}</b><span>미확인</span></div>
   <div><b>${shots}</b><span>촬영 사진</span></div></div>
-  ${body}</div></body></html>`);
-  w.document.close();
+  ${body}</div></body></html>`;
+  const w=window.open('','_blank');
+  if(w){ w.document.write(html); w.document.close(); return; }
+  /* 팝업이 막히면 사용자가 직접 누를 수 있는 링크로 대신 연다 */
+  const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));
+  openSheet(`<h2>보고용 표</h2><p class="sub">브라우저가 새 창 여는 것을 막았습니다. 아래를 눌러 여세요.</p>
+    <a class="opt" href="${url}" target="_blank" rel="noopener"><span class="oic">${IC.print}</span><span><b>보고용 표 열기</b>
+    <span>새 탭에서 열립니다. 인쇄 · PDF 저장도 그 화면에서 할 수 있습니다.</span></span></a>`);
 }
 
 function makeCsv(){
