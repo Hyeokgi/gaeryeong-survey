@@ -116,6 +116,13 @@ main{max-width:620px;margin:0 auto;padding:14px}
 .ic{width:17px;height:17px;flex:0 0 auto}
 input[type=file]{display:none}
 
+/* ══ 마을 넘기기 ══ */
+@keyframes slL{from{transform:translateX(26px);opacity:.35}to{transform:none;opacity:1}}
+@keyframes slR{from{transform:translateX(-26px);opacity:.35}to{transform:none;opacity:1}}
+main.sl{animation:slL .22s cubic-bezier(.22,1,.36,1)}
+main.sr{animation:slR .22s cubic-bezier(.22,1,.36,1)}
+@media(prefers-reduced-motion:reduce){main.sl,main.sr{animation:none}}
+
 /* ══ 빈 화면 ══ */
 .empty{text-align:center;padding:70px 26px;color:var(--ink2)}
 .empty svg{width:46px;height:46px;color:var(--ink3);margin-bottom:14px}
@@ -277,11 +284,7 @@ function renderHead(){
     const n=PARCELS.filter(p=>p.village===v&&!st(p.id).done).length;
     return `<button data-v="${v}" aria-selected="${vill===v}">${v} <b class="tnum">${n}</b></button>`;
   }).join('') + `<button data-v="done" aria-selected="${vill==='done'}">✓ 완료 <b class="tnum">${done}</b></button>`;
-  vr.querySelectorAll('button').forEach(b=>b.onclick=()=>{
-    if(b.dataset.v==='done'){ vill='done'; tab='done'; }
-    else { vill=b.dataset.v; const vd=villDays(vill); tab=vd.includes(tab)?tab:vd[0]; }
-    render();
-  });
+  vr.querySelectorAll('button').forEach(b=>b.onclick=()=>goChip(b.dataset.v));
 
   const tb=document.getElementById('tabs');
   if(vill==='done'){ tb.style.display='none'; tb.innerHTML=''; return; }
@@ -348,6 +351,43 @@ function render(){
   el.querySelectorAll('[data-ok]').forEach(b=>b.onclick=()=>mark(b.dataset.ok,true));
   el.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>mark(b.dataset.undo,false));
 }
+
+/* ── 마을 넘기기 (상단 칩 순서대로 · 탭과 좌우 스와이프가 같은 길을 쓴다) ── */
+const chips=()=>[...VILLAGES,'done'];
+function goChip(v){
+  if(v==='done'){ vill='done'; tab='done'; }
+  else { vill=v; const vd=villDays(vill); tab=vd.includes(tab)?tab:vd[0]; }
+  render();
+}
+function slideTo(dx,v){
+  const el=document.getElementById('list');
+  el.classList.remove('sl','sr');
+  goChip(v);
+  window.scrollTo(0,0);
+  void el.offsetWidth;                 /* 같은 방향으로 연속해서 넘겨도 애니메이션이 다시 돈다 */
+  el.classList.add(dx<0?'sl':'sr');
+}
+(function bindSwipe(){
+  const el=document.getElementById('list');
+  let x0=0,y0=0,t0=0,on=false;
+  el.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1){ on=false; return; }
+    const t=e.touches[0];
+    /* 화면 좌우 끝은 브라우저의 뒤로가기 제스처 자리라 건드리지 않는다 */
+    if(t.clientX<24||t.clientX>window.innerWidth-24){ on=false; return; }
+    x0=t.clientX; y0=t.clientY; t0=Date.now(); on=true;
+  },{passive:true});
+  el.addEventListener('touchend',e=>{
+    if(!on) return; on=false;
+    const t=e.changedTouches[0], dx=t.clientX-x0, dy=t.clientY-y0;
+    if(Date.now()-t0>1200) return;                         /* 아주 오래 끈 것만 스크롤로 본다 */
+    if(Math.abs(dx)<64||Math.abs(dx)<Math.abs(dy)*1.6) return;   /* 세로로 더 움직였으면 무시 */
+    const list=chips(), j=list.indexOf(vill)+(dx<0?1:-1);
+    if(j<0){ toast('첫 마을입니다'); return; }
+    if(j>=list.length){ toast('마지막 화면입니다'); return; }
+    slideTo(dx,list[j]);
+  },{passive:true});
+})();
 
 /* ── 네이버지도 앱 우선 실행 ── */
 function openNaverMap(addr){
