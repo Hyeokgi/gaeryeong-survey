@@ -194,6 +194,7 @@ const PARCELS = [{"id":"p1","no":1,"village":"광천리","jibun":"1-2","label":"
 const KEY='gaeryeong-김정원-v1';
 const WHO='김정원';                  /* 조사원 이름 · 보고서 제목과 파일명에 쓰인다 */
 const AREA='경상북도 김천시 개령면';  /* 담당 행정구역 · 마을 목록은 VILLAGES에서 자동으로 뽑는다 */
+const POS=KEY+':pos';                /* 마지막으로 보던 마을·일차 · 진행상황과 성격이 달라 백업에는 넣지 않는다 */
 const IC={
  map:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>',
  cam:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2 2 0 0 1 5 6.5h2.2L8.6 4.4h6.8l1.4 2.1H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.4"/></svg>',
@@ -230,6 +231,18 @@ const store={
 function checkStorage(){
   try{ localStorage.setItem('_t','1'); localStorage.removeItem('_t'); return true; }
   catch(e){ return !!window.storage; }
+}
+
+/* ── 보던 위치 ── */
+function savePos(){ try{ localStorage.setItem(POS,JSON.stringify({vill,tab})); }catch(e){} }
+function restorePos(){
+  let p=null; try{ p=JSON.parse(localStorage.getItem(POS)||'null'); }catch(e){}
+  if(p && p.vill==='done'){ vill='done'; tab='done'; return; }
+  if(p && VILLAGES.includes(p.vill)){
+    vill=p.vill; const vd=villDays(vill);
+    tab=vd.includes(p.tab)?p.tab:vd[0]; return;
+  }
+  vill=VILLAGES[0]; tab=villDays(vill)[0];
 }
 
 const kind=a=>a==='차량진입 가능'?'car':a==='도보 접근'?'walk':'need';
@@ -272,7 +285,7 @@ function renderHead(){
 }
 
 function render(){
-  renderHead();
+  renderHead(); savePos();
   let rows = vill==='done' ? PARCELS.filter(p=>st(p.id).done)
            : PARCELS.filter(p=>p.village===vill && p.day===tab && !st(p.id).done);
   if(q){const k=q.trim().toLowerCase();
@@ -871,7 +884,7 @@ document.getElementById('q').oninput=e=>{q=e.target.value;render()};
 (async()=>{
   storageOK=checkStorage();
   if(!storageOK) document.getElementById('warn').classList.add('on');
-  state=await store.get(); vill=VILLAGES[0]; tab=villDays(vill)[0]; render();
+  state=await store.get(); restorePos(); render();
 })();
 </script>
 </body></html>
