@@ -390,8 +390,10 @@ async function shoot(id,input){
   const p=PARCELS.find(x=>x.id===id),s=st(id),n=s.shots+1;
   const ext=(f.type.split('/')[1]||'jpg').replace('jpeg','jpg');
   const name=`${p.fname} (${n}).${ext}`;
-  await saveOrShowPhoto(f,name);
-  state[id]={...s,shots:n}; await store.set(state); input.value='';
+  const saved=await saveOrShowPhoto(f,name);
+  input.value='';
+  if(!saved){ render(); return; }   /* 저장을 취소하면 매수도 파일명 번호도 소모하지 않는다 */
+  state[id]={...s,shots:n}; await store.set(state);
   render();
 }
 async function mark(id,done){
