@@ -744,7 +744,9 @@ const IS_IOS=/iP(hone|od|ad)/.test(navigator.userAgent)||
   (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 async function exportPhoto(file,name){
   if(IS_IOS) return await saveOrShowPhoto(file,name);
-  try{ dl(file,name); toast(`${name} 저장됨`); return true; }
+  let named=file;
+  try{ named=new File([file],name,{type:file.type||'image/jpeg'}); }catch(e){}
+  try{ dl(named,name); toast(`${name} 저장됨`); return true; }
   catch(e){ toast('사진첩 저장에 실패했습니다'); return false; }
 }
 
@@ -776,7 +778,10 @@ async function saveOrShowPhoto(file,name){
 
 async function shoot(id,input){
   const f=input.files&&input.files[0]; if(!f)return;
-  const p=PARCELS.find(x=>x.id===id),s=st(id),n=(s.pn||s.shots||0)+1;
+  const p=PARCELS.find(x=>x.id===id),s=st(id);
+  if(!p){ input.value=''; toast('촬영할 필지를 찾지 못했습니다'); return; }
+  const saved=await photosOf(id);
+  const n=Math.max(s.pn||0,s.shots||0,...saved.map(x=>Number(x.n)||0))+1;
   const ext=(f.type.split('/')[1]||'jpg').replace('jpeg','jpg');
   const name=`${p.fname} (${n}).${ext}`;
   input.value='';
@@ -884,7 +889,9 @@ document.getElementById('btnMore').onclick=()=>openSheet(`
   <button class="opt danger" data-act="reset"><span class="oic">${IC.trash}</span><span><b>진행상황 초기화</b>
     <span>판정·이행면적·사진 매수를 모두 지웁니다. 찍은 사진 파일은 남습니다.</span></span></button>`);
 /* ══════════ 사진 보관함 (IndexedDB · 축소본은 계속, 원본은 최근 것만) ══════════ */
-const PDB='gaeryeong-photos', PSTORE='photos';
+const PDB='gaeryeong-photos', PSTORE='photos', PHOTO_APP='lee';
+const photoParcel=id=>PHOTO_APP+':'+id;
+const isOwnPhoto=v=>v.app===PHOTO_APP||(!v.app&&/^n\d+$/.test(v.parcel||''));
 const THUMB_EDGE=900, THUMB_Q=.7, FULL_KEEP=100;
 let _pdb=null;
 function pdb(){
@@ -936,7 +943,7 @@ async function pruneFulls(){
     cur.onsuccess=e=>{
       const c=e.target.result; if(!c) return;
       const v=c.value;
-      if(v.full){ kept++; if(kept>FULL_KEEP) c.update({...v,full:null}); }
+      if(isOwnPhoto(v)&&v.full){ kept++; if(kept>FULL_KEEP) c.update({...v,full:null}); }
       c.continue();
     };
     t.oncomplete=()=>res(); t.onerror=()=>rej(t.error);
@@ -946,7 +953,8 @@ async function pruneFulls(){
 async function keepPhoto(id,n,name,file){
   try{
     const thumb=await shrink(file).catch(()=>null);
-    await preq('readwrite',os=>os.put({key:id+':'+n,parcel:id,n,name,at:Date.now(),thumb,full:file}));
+    const parcel=photoParcel(id);
+    await preq('readwrite',os=>os.put({key:parcel+':'+n,parcel,app:PHOTO_APP,n,name,at:Date.now(),thumb,full:file}));
     await pruneFulls();
   }catch(e){
     toast('사진을 앱에 보관하지 못했습니다');   /* 보관 실패해도 촬영 기록 자체는 남긴다 */
@@ -955,8 +963,9 @@ async function keepPhoto(id,n,name,file){
 
 async function photosOf(id){
   try{
-    const rows=await preq('readonly',os=>os.index('parcel').getAll(id));
-    return (rows||[]).sort((a,b)=>a.n-b.n);
+    const scoped=await preq('readonly',os=>os.index('parcel').getAll(photoParcel(id)));
+    const legacy=await preq('readonly',os=>os.index('parcel').getAll(id));
+    return [...(legacy||[]),...(scoped||[])].sort((a,b)=>a.n-b.n);
   }catch(e){ return []; }
 }
 
@@ -1017,7 +1026,8 @@ async function showPhotoBox(){
     await new Promise((res,rej)=>{
       const t=d.transaction(PSTORE,'readonly');
       const cur=t.objectStore(PSTORE).openCursor();
-      cur.onsuccess=e=>{const c=e.target.result; if(!c) return; n++; if(c.value.full) full++; c.continue();};
+      cur.onsuccess=e=>{const c=e.target.result; if(!c) return; const v=c.value;
+        if(isOwnPhoto(v)){n++; if(v.full) full++;} c.continue();};
       t.oncomplete=()=>res(); t.onerror=()=>rej(t.error);
     });
   }catch(e){}
@@ -1032,7 +1042,9 @@ async function showPhotoBox(){
   const b=document.getElementById('pclr');
   if(b) b.onclick=async()=>{
     if(!confirm('앱에 보관된 사진을 모두 지웁니다.\n사진 앱에 저장해 둔 파일은 그대로 남습니다.\n\n비울까요?')) return;
-    try{ await preq('readwrite',os=>os.clear()); toast('보관된 사진을 비웠습니다'); }
+    try{ const d=await pdb(); await new Promise((res,rej)=>{const t=d.transaction(PSTORE,'readwrite'),cur=t.objectStore(PSTORE).openCursor();
+        cur.onsuccess=e=>{const c=e.target.result;if(!c)return;if(isOwnPhoto(c.value))c.delete();c.continue()};t.oncomplete=res;t.onerror=()=>rej(t.error)});
+      toast('보관된 사진을 비웠습니다'); }
     catch(e){ toast('비우지 못했습니다'); }
     closeSheet();
   };
