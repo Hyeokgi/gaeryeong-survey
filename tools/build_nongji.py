@@ -118,7 +118,7 @@ def load_rows():
         if not m:
             print("   주소를 못 읽었다:", site); continue
         recs.append(dict(vil=m.group(1), jb=re.sub(r"번지$", "", m.group(2)).strip(), site=site,
-                         who=str(r[2]).strip(), addr=str(r[3]).strip(), tel=str(r[4]).strip(),
+                         who=str(r[2]).strip(),
                          ra=num(r[6]), aa=num(r[7]),
                          c1=str(r[8] or "").strip(), c2=str(r[9] or "").strip(),
                          item=str(r[10] or "").strip(), grp=str(r[11] or "").strip(),
@@ -242,7 +242,7 @@ def main():
             p = {
                 "id": pid, "no": no, "village": v, "jibun": x["jb"],
                 "label": "%s %s" % (v, x["jb"]), "addr": x["site"],
-                "who": x["who"], "tel": x["tel"], "home": x["addr"],
+                "who": x["who"],
                 "seq": seq, "dn": dn,
                 "ra": fmt(x["ra"]), "aa": fmt(x["aa"]), "raT": com(x["ra"]), "aaT": com(x["aa"]),
                 "c1": x["c1"], "c2": x["c2"], "item": x["item"],
