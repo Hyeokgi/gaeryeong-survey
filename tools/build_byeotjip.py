@@ -203,17 +203,21 @@ def main():
     for i, x in enumerate(recs, 1):
         pid = "b%d" % i
         seqn[x["emd"]] += 1
+        # 동 지역은 리가 없어 리동 칸이 비어 있다(22필지). 비워 두면 탭 이름이 사라지고
+        # 주소에 공백이 겹쳐 지도 검색이 깨지므로, 그때는 동 이름을 리동 자리에 쓴다.
+        ri = x["ri"] or x["emd"]
+        loc = x["emd"] if ri == x["emd"] else "%s %s" % (x["emd"], ri)
         PARCELS.append({
             "id": pid, "no": i, "fno": x["fno"], "seq": seqn[x["emd"]],
-            "village": x["emd"], "ri": x["ri"], "jibun": x["jb"],
+            "village": x["emd"], "ri": ri, "jibun": x["jb"],
             "juri": x["juri"], "who": x["who"],
-            "label": "%s %s %s" % (x["emd"], x["ri"], x["jb"]),
-            "addr": "김천시 %s %s %s" % (x["emd"], x["ri"], x["jb"]),
+            "label": "%s %s" % (loc, x["jb"]),
+            "addr": "김천시 %s %s" % (loc, x["jb"]),
             "ra": fmt(x["ra"]), "aa": fmt(x["aa"]),
             "raT": com(x["ra"]), "aaT": com(x["aa"]),
             "fee": fmt(x["fee"]), "feeT": com(x["fee"]), "unit": fmt(x["unit"]),
             "eco": x["eco"], "biz": x["biz"], "harv": x["harv"], "note": x["note"],
-            "fname": "%s %s %s_%s" % (x["who"], x["emd"], x["ri"], x["jb"]),
+            "fname": "%s %s_%s" % (x["who"], loc, x["jb"]),
         })
         k = (x["ri"], x["jb"])
         if k in geo: GEO[pid] = geo[k]
